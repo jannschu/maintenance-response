@@ -12,7 +12,7 @@ if [ -z "$git_tag" ]; then
   exit 1
 fi
 
-if [ "$cargo_version" != "$git_tag" ]; then
+if [ "v$cargo_version" != "$git_tag" ]; then
   echo "Version mismatch: Cargo.toml version is $cargo_version, but git tag is $git_tag"
   exit 1
 fi
