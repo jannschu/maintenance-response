@@ -1,16 +1,9 @@
-displayName: Maintenance Mode Plugin
-
+displayName: Maintenance Mode
 type: middleware
-
-import: github.com/jannschu/maintenance-response
-
-summary: "A middleware that checks if a service is in maintenance mode and returns an appropriate status code"
-
+runtime: wasm
+summary: Show a maintenance page if enabled
 testData:
   enabled: true
-  content: /etc/traefik/maintenance.*
-  queryFilter:
-    - "*.example.com"
-    - /api/**
-
-id: maintenanceResponse
+  onlyIf: http.host == "example.com"
+  content:
+    - /etc/traefik/maintenance/index.html

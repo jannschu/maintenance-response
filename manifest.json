@@ -1,8 +1,0 @@
-{
-  "manifest_version": 2,
-  "name": "maintenance-response",
-  "version": "0.1.0",
-  "description": "A middleware plugin for Traefik that blocks requests during maintenance mode.",
-  "modulename": "github.com/jannschu/maintenance-response",
-  "license": "MIT"
-}

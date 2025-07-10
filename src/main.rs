@@ -1,0 +1,365 @@
+use std::{
+    collections::{HashMap, hash_map::Entry},
+    error::Error,
+    fs::File,
+    io::Read,
+    net::{IpAddr, Ipv4Addr, SocketAddr},
+    path::PathBuf,
+    str::FromStr,
+};
+
+use headers_accept::Accept;
+use http::uri::Authority;
+use http_wasm_guest::{
+    Guest,
+    host::{Bytes, Request, Response, get_config},
+    register,
+};
+use mediatype::MediaType;
+use serde::{Deserialize, Deserializer};
+use wirefilter::{ExecutionContext, Scheme};
+
+#[macro_use]
+extern crate log;
+
+struct Filter {
+    scheme: Scheme,
+    filter: wirefilter::Filter,
+}
+
+const MAINTENACE_STATUS: i32 = 503;
+
+impl Filter {
+    fn new(filter: &str) -> Result<Self, Box<dyn Error>> {
+        let scheme_builder = Scheme! {
+            http.method: Bytes,
+            http.ua: Bytes,
+            http.host: Bytes,
+            http.path: Bytes,
+            http.version: Bytes,
+            src.ip: Ip,
+            src.port: Int,
+        };
+        let scheme = scheme_builder.build();
+        let ast = scheme.parse(filter).map_err(|e| e.to_string())?;
+        let filter = ast.compile();
+        Ok(Self { scheme, filter })
+    }
+
+    fn matches(&self, request: &Request) -> Result<bool, Box<dyn Error>> {
+        let mut context = ExecutionContext::new(&self.scheme);
+        let method = request.method();
+        debug!("Setting method: {}", method.as_str());
+        context
+            .set_field_value_from_name("http.method", method.as_str())
+            .expect("Failed to set method");
+
+        let header = request.header();
+
+        let user_agents = header.values(&Bytes::from("User-Agent"));
+        if let Some(agents) = user_agents.first() {
+            debug!("Setting User-Agent: {}", agents.as_str());
+            context
+                .set_field_value_from_name("http.ua", agents.as_str())
+                .expect("Failed to set User-Agent");
+            if user_agents.len() > 1 {
+                debug!("Multiple User-Agent headers found, using the first one: {agents}");
+            }
+        } else {
+            context
+                .set_field_value_from_name("http.ua", "")
+                .expect("Failed to set User-Agent");
+        }
+
+        let hosts = header.values(&Bytes::from("Host"));
+        if let Some(authority) = hosts
+            .first()
+            .and_then(|h| Authority::from_str(h.as_str()).ok())
+        {
+            let host = authority.host().to_string();
+            if hosts.len() > 1 {
+                debug!(
+                    "Multiple Host headers found, using the first one: {}",
+                    &host
+                );
+            }
+            debug!("Setting Host: {}", &host);
+            context
+                .set_field_value_from_name("http.host", host)
+                .expect("Failed to set Host");
+        } else {
+            context
+                .set_field_value_from_name("http.host", "")
+                .expect("Failed to set Host");
+        }
+
+        let version = request.version();
+        debug!("Setting HTTP version: {}", version.as_str());
+        context
+            .set_field_value_from_name("http.version", version.as_str())
+            .expect("Failed to set HTTP version");
+
+        let source_addr = request.source_addr();
+        if let Ok(addr) = SocketAddr::from_str(source_addr.as_str()) {
+            debug!("Setting source address: {addr:?}");
+            context
+                .set_field_value_from_name("src.port", addr.port())
+                .expect("Failed to set source port");
+            context
+                .set_field_value_from_name("src.ip", addr.ip())
+                .expect("Failed to set source port");
+        } else if let Ok(ip) = IpAddr::from_str(source_addr.as_str()) {
+            debug!("Setting client IP: {ip}");
+            context
+                .set_field_value_from_name("src.ip", ip)
+                .expect("Failed to set client IP");
+        } else {
+            debug!("Invalid source address: {source_addr}");
+            let unspecified_ip = IpAddr::V4(Ipv4Addr::UNSPECIFIED);
+            context
+                .set_field_value_from_name("src.ip", unspecified_ip)
+                .expect("Failed to set client IP");
+        }
+
+        let path = request.uri();
+        debug!("Setting path: {}", path.as_str());
+        context
+            .set_field_value_from_name("http.path", path.as_str())
+            .expect("Failed to set path");
+
+        self.filter.execute(&context).map_err(Into::into)
+    }
+}
+
+struct MaintenancePages {
+    pages: HashMap<MediaType<'static>, PathBuf>,
+}
+
+impl MaintenancePages {
+    fn new(paths: Vec<PathBuf>) -> Self {
+        let mut pages = HashMap::with_capacity(paths.len());
+        for page in paths {
+            let mime_type = match infer::get_from_path(&page) {
+                Ok(Some(mime)) => match MediaType::parse(mime.mime_type()) {
+                    Ok(mt) => mt,
+                    Err(e) => {
+                        error!("Failed to parse MIME type for {page:?}: {e}");
+                        MediaType::new(
+                            mediatype::names::APPLICATION,
+                            mediatype::names::OCTET_STREAM,
+                        )
+                    }
+                },
+                Ok(None) => {
+                    error!(
+                        "Could not infer MIME type for {page:?}, using application/octet-stream"
+                    );
+                    MediaType::new(
+                        mediatype::names::APPLICATION,
+                        mediatype::names::OCTET_STREAM,
+                    )
+                }
+                Err(e) => {
+                    error!("Failed to infer MIME type for {page:?}: {e}");
+                    continue;
+                }
+            };
+            if page.is_file() {
+                let entry = pages.entry(mime_type.clone());
+                if matches!(&entry, Entry::Occupied(_)) {
+                    error!(
+                        "Duplicate maintenance page for MIME type {mime_type}, skipping {page:?}"
+                    );
+                    continue;
+                }
+                info!("Adding maintenance page for MIME type {mime_type}: {page:?}");
+                entry.insert_entry(page);
+            } else {
+                error!("Path {page:?} is not a file, skipping");
+            }
+        }
+        Self { pages }
+    }
+
+    fn send_page(&self, accept_header: &str, response: &Response) -> Result<(), Box<dyn Error>> {
+        let accept = match Accept::from_str(accept_header) {
+            Ok(a) => a,
+            Err(e) => {
+                debug!("Failed to parse Accept header: {e}");
+                return fallback(response);
+            }
+        };
+        let available = self.pages.keys();
+        let Some(mime) = accept.negotiate(available) else {
+            return fallback(response);
+        };
+        let Some(path) = self.pages.get(mime) else {
+            error!("No maintenance page available for MIME type: {mime}");
+            return fallback(response);
+        };
+
+        // Read and send the file content in chunks
+        match File::open(path) {
+            Ok(mut file) => {
+                response.header().set(
+                    &Bytes::from("Content-Type"),
+                    &Bytes::from(mime.to_string().as_str()),
+                );
+                response.set_status(MAINTENACE_STATUS);
+                let mut buffer = [0u8; 8192];
+                let body = response.body();
+                loop {
+                    match file.read(&mut buffer)? {
+                        0 => break, // EOF
+                        n => {
+                            body.write(&Bytes::from(&buffer[..n]));
+                        }
+                    }
+                }
+                Ok(())
+            }
+            Err(e) => {
+                error!("Failed to open maintenance page {}: {}", path.display(), e);
+                fallback(response)
+            }
+        }
+    }
+}
+
+fn fallback(response: &Response) -> Result<(), Box<dyn Error>> {
+    response.set_status(MAINTENACE_STATUS);
+    response
+        .header()
+        .set(&Bytes::from("Content-Type"), &Bytes::from("text/plain"));
+    response
+        .body()
+        .write(&Bytes::from("Service unavailable due to maintenance"));
+    Ok(())
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct PluginConfig {
+    #[serde(default, deserialize_with = "lenient_bool")]
+    enabled: bool,
+    #[serde(default)]
+    only_if: Option<String>,
+    #[serde(default)]
+    content: Option<Vec<PathBuf>>,
+}
+
+fn lenient_bool<'de, D>(deserializer: D) -> Result<bool, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    let value: String = Deserialize::deserialize(deserializer)?;
+    if let Ok(val) = value.parse::<bool>() {
+        return Ok(val);
+    }
+    match value.to_lowercase().as_str() {
+        "true" | "yes" | "1" => Ok(true),
+        "false" | "no" | "0" => Ok(false),
+        _ => Err(serde::de::Error::custom("Invalid boolean value")),
+    }
+}
+
+struct Plugin {
+    filter: Option<Filter>,
+    maintenance_pages: Option<MaintenancePages>,
+}
+
+impl PluginConfig {
+    fn into_plugin(self) -> Option<Plugin> {
+        if self.enabled {
+            if let Some(only) = &self.only_if {
+                info!("Plugin is enabled, only processing requests if: {only}");
+            } else {
+                info!("Plugin is enabled, processing all requests");
+            }
+            let filter = if let Some(filter) = &self.only_if {
+                Some(match Filter::new(filter) {
+                    Ok(f) => f,
+                    Err(err) => {
+                        error!("Failed to create filter: {err}");
+                        return None;
+                    }
+                })
+            } else {
+                None
+            };
+            let maintenance_pages = self.content.map(MaintenancePages::new);
+            Some(Plugin {
+                filter,
+                maintenance_pages,
+            })
+        } else {
+            None
+        }
+    }
+}
+
+impl Guest for Plugin {
+    fn handle_request(&self, request: Request, response: Response) -> (bool, i32) {
+        let ctx = 0;
+        let proceed = (true, ctx);
+        if let Some(filter) = &self.filter {
+            match filter.matches(&request) {
+                Ok(true) => {
+                    debug!("Request {:?} matches filter", request.uri().as_str());
+                }
+                Ok(false) => {
+                    debug!(
+                        "Request {:?} does not match filter, skipping...",
+                        request.uri().as_str()
+                    );
+                    return proceed;
+                }
+                Err(err) => {
+                    error!("Error matching request against filter: {err}");
+                    // do not skip, show maintenance_pages
+                }
+            }
+        }
+        if let Some(pages) = &self.maintenance_pages {
+            let accept_headers = request.header().values(&Bytes::from("Accept"));
+            let accept_header = accept_headers.first().map(|v| v.as_str()).unwrap_or("");
+            match pages.send_page(accept_header, &response) {
+                Ok(_) => {
+                    debug!("Maintenance page sent successfully");
+                }
+                Err(err) => {
+                    error!("Failed to send maintenance page: {err}");
+                }
+            };
+        } else {
+            debug!("No maintenance pages configured, proceeding with request");
+            if let Err(e) = fallback(&response) {
+                error!("Failed to send fallback response: {e}");
+            }
+        }
+        (false, ctx)
+    }
+}
+
+fn main() {
+    http_wasm_guest::host::log::init().expect("Failed to initialize logging");
+    let config = match get_config() {
+        Ok(config) => config,
+        Err(err) => {
+            error!("Failed to get config: {err}");
+            return;
+        }
+    };
+    let plugin_config = match serde_json::from_str::<PluginConfig>(&config) {
+        Ok(c) => c,
+        Err(e) => {
+            error!("Configuration: {config:?}");
+            error!("Failed to parse plugin configuration: {e}");
+            return;
+        }
+    };
+
+    if let Some(plugin) = plugin_config.into_plugin() {
+        register(plugin);
+    }
+}
