@@ -102,7 +102,7 @@ def plugin():
                     stack.append((key, value))
             elif isinstance(config, list):
                 for i, item in enumerate(config):
-                    stack.append((str(i), item))
+                    stack.append((i, item))
             elif isinstance(config, str | float | int):
                 return str(config)
             elif isinstance(config, bool):
@@ -141,6 +141,8 @@ def plugin():
             middleware = get_middleware_config(f"{middleware_name}@redis")
             if middleware is not None:
                 config = middleware["plugin"][plugin_name]
+                if "content" in config:
+                    config["content"] = config["content"].split(",")
                 if config == new:
                     break
             time.sleep(0.1)
@@ -161,10 +163,10 @@ def get_middleware_config(name: str) -> dict[str, Any] | None:
 
 
 class Query:
-    def __init__(self, path="/ci/", method="GET"):
+    def __init__(self, path="/ci/", method="GET", **kwargs):
         if not path.startswith("/"):
             path = "/" + path
-        self.response = requests.request(method, TRAEFIK_URL + path)
+        self.response = requests.request(method, TRAEFIK_URL + path, **kwargs)
 
     def maintenance(self) -> bool:
         return self.response.status_code == 503
@@ -172,3 +174,7 @@ class Query:
     @property
     def text(self) -> str:
         return self.response.text
+
+    @property
+    def headers(self):
+        return self.response.headers

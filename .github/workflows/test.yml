@@ -48,6 +48,7 @@ jobs:
       - name: Start Traefik
         run: |
           cd .github/traefik/
+          mkdir -p maintenance
           docker compose up -d
 
       - name: Install uv
