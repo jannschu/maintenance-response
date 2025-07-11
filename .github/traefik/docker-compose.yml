@@ -7,8 +7,8 @@ services:
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
       - ./plugins:/plugins-local:ro
+      - ./maintenance:/etc/traefik/maintenance:ro
       - ./traefik.yml:/etc/traefik/traefik.yml:ro
-      - ./maintenance/:/etc/traefik/maintenace:ro
     labels:
       - "traefik.enable=true"
       - "traefik.http.routers.api.rule=PathPrefix(`/`)"

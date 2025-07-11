@@ -1,6 +1,7 @@
 use std::{
     collections::{HashMap, hash_map::Entry},
     error::Error,
+    fmt,
     fs::File,
     io::Read,
     net::{IpAddr, Ipv4Addr, SocketAddr},
@@ -16,7 +17,10 @@ use http_wasm_guest::{
     register,
 };
 use mediatype::MediaType;
-use serde::{Deserialize, Deserializer};
+use serde::{
+    Deserialize, Deserializer,
+    de::{self, SeqAccess, Visitor},
+};
 use wirefilter::{ExecutionContext, Scheme};
 
 #[macro_use]
@@ -139,44 +143,37 @@ impl MaintenancePages {
     fn new(paths: Vec<PathBuf>) -> Self {
         let mut pages = HashMap::with_capacity(paths.len());
         for page in paths {
-            let mime_type = match infer::get_from_path(&page) {
-                Ok(Some(mime)) => match MediaType::parse(mime.mime_type()) {
-                    Ok(mt) => mt,
-                    Err(e) => {
-                        error!("Failed to parse MIME type for {page:?}: {e}");
-                        MediaType::new(
-                            mediatype::names::APPLICATION,
-                            mediatype::names::OCTET_STREAM,
-                        )
+            match file_type::FileType::try_from_file(&page) {
+                Ok(mime) => {
+                    for media_type_name in mime.media_types() {
+                        let mime_type = match MediaType::parse(media_type_name) {
+                            Ok(mt) => mt,
+                            Err(e) => {
+                                error!("Failed to parse MIME type for {page:?}: {e}");
+                                continue;
+                            }
+                        };
+
+                        if page.is_file() {
+                            let entry = pages.entry(mime_type.clone());
+                            if matches!(&entry, Entry::Occupied(_)) {
+                                error!(
+                                    "Duplicate maintenance page for MIME type {mime_type}, skipping {page:?}"
+                                );
+                                continue;
+                            }
+                            info!("Adding maintenance page for MIME type {mime_type}: {page:?}");
+                            entry.insert_entry(page.clone());
+                        } else {
+                            error!("Path {page:?} is not a file, skipping");
+                        }
                     }
-                },
-                Ok(None) => {
-                    error!(
-                        "Could not infer MIME type for {page:?}, using application/octet-stream"
-                    );
-                    MediaType::new(
-                        mediatype::names::APPLICATION,
-                        mediatype::names::OCTET_STREAM,
-                    )
                 }
                 Err(e) => {
                     error!("Failed to infer MIME type for {page:?}: {e}");
                     continue;
                 }
             };
-            if page.is_file() {
-                let entry = pages.entry(mime_type.clone());
-                if matches!(&entry, Entry::Occupied(_)) {
-                    error!(
-                        "Duplicate maintenance page for MIME type {mime_type}, skipping {page:?}"
-                    );
-                    continue;
-                }
-                info!("Adding maintenance page for MIME type {mime_type}: {page:?}");
-                entry.insert_entry(page);
-            } else {
-                error!("Path {page:?} is not a file, skipping");
-            }
         }
         Self { pages }
     }
@@ -227,14 +224,69 @@ impl MaintenancePages {
 }
 
 fn fallback(response: &Response) -> Result<(), Box<dyn Error>> {
-    response.set_status(MAINTENACE_STATUS);
     response
         .header()
         .set(&Bytes::from("Content-Type"), &Bytes::from("text/plain"));
+    response.set_status(MAINTENACE_STATUS);
     response
         .body()
         .write(&Bytes::from("Service unavailable due to maintenance"));
     Ok(())
+}
+
+fn deserialize_path_string<'de, D>(deserializer: D) -> Result<Option<Vec<PathBuf>>, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    struct VecStringVisitor;
+
+    impl<'de> Visitor<'de> for VecStringVisitor {
+        type Value = Option<Vec<PathBuf>>;
+
+        fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+            formatter.write_str("a list of paths or a comma-separated path")
+        }
+
+        fn visit_seq<A>(self, mut seq: A) -> Result<Self::Value, A::Error>
+        where
+            A: SeqAccess<'de>,
+        {
+            let mut vec = Vec::new();
+            while let Some(value) = seq.next_element::<PathBuf>()? {
+                vec.push(value);
+            }
+            Ok(Some(vec))
+        }
+
+        fn visit_none<E>(self) -> Result<Self::Value, E>
+        where
+            E: de::Error,
+        {
+            Ok(None)
+        }
+
+        fn visit_unit<E>(self) -> Result<Self::Value, E>
+        where
+            E: de::Error,
+        {
+            Ok(None)
+        }
+
+        fn visit_str<E>(self, v: &str) -> Result<Self::Value, E>
+        where
+            E: de::Error,
+        {
+            Ok(Some(
+                v.split(',')
+                    .map(str::trim)
+                    .filter(|s| !s.is_empty())
+                    .map(PathBuf::from)
+                    .collect(),
+            ))
+        }
+    }
+
+    deserializer.deserialize_any(VecStringVisitor)
 }
 
 #[derive(Deserialize)]
@@ -244,7 +296,7 @@ struct PluginConfig {
     enabled: bool,
     #[serde(default)]
     only_if: Option<String>,
-    #[serde(default)]
+    #[serde(default, deserialize_with = "deserialize_path_string")]
     content: Option<Vec<PathBuf>>,
 }
 
