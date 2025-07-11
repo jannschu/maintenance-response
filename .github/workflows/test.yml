@@ -49,12 +49,14 @@ jobs:
         run: |
           cd .github/traefik/
           docker compose up -d
-          for i in {1..10}; do
-            if curl -sf http://localhost/; then
-              break
-            fi
-            sleep 1
-          done
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v6
+
+      - name: Run end-to-end tests
+        run: |
+          cd tests/e2e
+          uv run pytest
 
       - name: Save Traefik logs
         if: always()
