@@ -41,7 +41,7 @@ jobs:
           echo "name=$ZIP" >> $GITHUB_OUTPUT
 
       - name: Upload build asset
-        uses: action/upload-artifact@v4
+        uses: actions/upload-artifact@v4
         with:
           name: build-assets
           path: ${{ steps.zip.outputs.name }}
