@@ -2,6 +2,12 @@ name: Build the WASM plugin
 
 on:
   workflow_call:
+    inputs:
+      debug_build:
+        description: "Build in debug mode (without --release flag)"
+        required: false
+        type: boolean
+        default: false
     outputs:
       name:
         description: "The name of the build artifact zip"
@@ -21,8 +27,10 @@ jobs:
         with:
           targets: wasm32-wasip1
 
+      - uses: Swatinem/rust-cache@v2
+
       - name: Build WASM
-        run: cargo build --release --target wasm32-wasip1
+        run: cargo build ${{ inputs.debug_build != true && '--release' || '' }} --target wasm32-wasip1
 
       - name: Extract crate name and version
         id: crateinfo
@@ -35,7 +43,7 @@ jobs:
       - name: Create artifacts
         run: |
           mkdir release
-          cp target/wasm32-wasip1/release/*.wasm release/plugin.wasm
+          cp target/wasm32-wasip1/${{ inputs.debug_build != true && 'release' || 'debug' }}/*.wasm release/plugin.wasm
           cp .traefik.yml release/
 
       - name: Create zip archive

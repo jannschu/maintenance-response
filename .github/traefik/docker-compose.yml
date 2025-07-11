@@ -1,0 +1,18 @@
+services:
+  traefik:
+    image: traefik:v3.4
+    ports:
+      - "80:80"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - ./plugins:/plugins-local:ro
+      - ./traefik.yml:/etc/traefik/traefik.yml:ro
+      - ./dynamic:/etc/traefik/dynamic:ro
+      - ./maintenance/:/etc/traefik/maintenace:ro
+  echo-server:
+    image: ealen/echo-server
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.echo.entrypoints=http"
+      - "traefik.http.routers.echo.rule=PathPrefix(`/`)"
+      - "traefik.http.services.echo.loadbalancer.server.port=80"

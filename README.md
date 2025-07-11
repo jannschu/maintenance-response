@@ -32,23 +32,24 @@ Provide a dynamic configuration, e.g. file based:
 
 ```yaml
 http:
-  maintenance:
-    plugin:
-      maintenance-response:
-        # use this to enable or disable the plugin,
-        # this configuration is dynamically reloaded by Traefik
-        enabled: true
-        # optional: specify response content,
-        # the content is picked using the 'Accept' header
-        # provided by the client
-        responses:
-          # must match the mount path
-          - /maintenance/index.html
-          - /maintenance/index.json
-        # optional: specify a filter expression (see below)
-        # for limiting the maintenance mode to specific requests
-        onlyIf: |
-          http.host == "example.com"
+  middlewares:
+    maintenance:
+      plugin:
+        maintenance-response:
+          # use this to enable or disable the plugin,
+          # this configuration is dynamically reloaded by Traefik
+          enabled: true
+          # optional: specify response content,
+          # the content is picked using the 'Accept' header
+          # provided by the client
+          responses:
+            # must match the mount path
+            - /maintenance/index.html
+            - /maintenance/index.json
+          # optional: specify a filter expression (see below)
+          # for limiting the maintenance mode to specific requests
+          onlyIf: |
+            http.host == "example.com"
 ```
 
 Then add the middleware to an entry point or service. For example, to add

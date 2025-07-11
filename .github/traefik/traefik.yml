@@ -1,0 +1,22 @@
+log:
+  level: INFO
+  noColor: true
+providers:
+  file:
+    directory: /etc/traefik/dynamic
+    watch: true
+  docker:
+    exposedByDefault: false
+experimental:
+  localPlugins:
+    maintenance-response:
+      moduleName: github.com/jannschu/maintenance-response
+      settings:
+        mounts:
+          - /etc/traefik/maintenance:/maintenance:ro
+entryPoints:
+  http:
+    address: ":80"
+    http:
+      middlewares:
+        - maintenance@file
