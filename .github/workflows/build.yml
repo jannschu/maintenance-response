@@ -1,11 +1,17 @@
 name: Build the WASM plugin
 
 on:
-  - workflow_call
+  workflow_call:
+    outputs:
+      name:
+        description: "The name of the build artifact zip"
+        value: ${{ jobs.build.outputs.name }}
 
 jobs:
   build:
     runs-on: ubuntu-latest
+    outputs:
+      name: ${{ steps.zip.outputs.name }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v4

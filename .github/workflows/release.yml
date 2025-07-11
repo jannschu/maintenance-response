@@ -27,10 +27,21 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: build-assets
+      - name: Check asset
+        id: check
+        run: |
+          ASSET="${{ needs.build.outputs.name }}"
+          if [[ ! "$ASSET" =~ \.zip$ ]]; then
+            echo "Asset is not a zip file."
+            exit 1
+          fi
+          unzip -l "$ASSET" | grep -q '\.traefik\.yml' || { echo ".traefik.yml not found in asset."; exit 1; }
+          unzip -l "$ASSET" | grep -q 'plugin\.wasm' || { echo "plugin.wasm not found in asset."; exit 1; }
+          echo "zip=$ASSET" >> $GITHUB_OUTPUT
 
-      - name: Upload release asset
+      - name: Create release
         uses: softprops/action-gh-release@v2
         with:
-          files: ${{ needs.build.outputs.name }}
+          files: ${{ steps.check.outputs.zip }}
         env:
           GITHUB_TOKEN: ${{ secrets.RELEASE_MAINTENANCE_RESPONSE }}
