@@ -4,7 +4,10 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
-file_type = { version = "0.8.8", features = ["all"] }
+file_type = { version = "0.8.8", default-features = false, features = [
+  "std",
+  "httpd",
+] }
 # use crates.io release if PR is merged and released
 headers-accept = { git = "https://github.com/jannschu/headers-accept.git", rev = "c9df91b4bd0d3f76229bb985dc5e9099fcf77550" }
 http = { version = "1.3.1", default-features = false }
