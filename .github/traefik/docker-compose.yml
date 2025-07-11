@@ -3,16 +3,21 @@ services:
     image: traefik:v3.4
     ports:
       - "80:80"
+      - "8080:8080"
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
       - ./plugins:/plugins-local:ro
       - ./traefik.yml:/etc/traefik/traefik.yml:ro
       - ./dynamic:/etc/traefik/dynamic:ro
       - ./maintenance/:/etc/traefik/maintenace:ro
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.api.rule=PathPrefix(`/`)"
+      - "traefik.http.routers.api.service=api@internal"
   echo-server:
     image: ealen/echo-server
     labels:
       - "traefik.enable=true"
       - "traefik.http.routers.echo.entrypoints=http"
-      - "traefik.http.routers.echo.rule=PathPrefix(`/`)"
+      - "traefik.http.routers.echo.rule=PathPrefix(`/`) && !PathPrefix(`/api`)"
       - "traefik.http.services.echo.loadbalancer.server.port=80"
