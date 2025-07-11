@@ -11,6 +11,7 @@
 - Custom response content based on the `Accept` header
 - Filtering requests using a [Cloudflare filter expression](https://github.com/cloudflare/wirefilter)
 - WASM plugin, which runs in a sandbox
+- End-To-End tests
 
 ## Installation example
 
@@ -76,7 +77,7 @@ Cloudflare's Wirefilter syntax, which in turn is based on the
 Limit maintenance mode to specific hosts:
 
 ```
-http.host in { "example.com", "intern.example.com" }
+http.host in { "example.com" "intern.example.com" }
 ```
 
 Limit requests to paths:
