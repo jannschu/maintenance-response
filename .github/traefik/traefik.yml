@@ -5,9 +5,10 @@ api:
   insecure: true
 providers:
   providersThrottleDuration: 0
-  file:
-    directory: /etc/traefik/dynamic
-    watch: true
+  redis:
+    endpoints:
+      - redis:6379
+    rootKey: traefik
   docker:
     exposedByDefault: false
 experimental:
@@ -20,6 +21,3 @@ experimental:
 entryPoints:
   http:
     address: ":80"
-    http:
-      middlewares:
-        - maintenance@file
