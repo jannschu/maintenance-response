@@ -1,0 +1,47 @@
+name: Build the WASM plugin
+
+on:
+  - workflow_call
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-wasip1
+
+      - name: Build WASM
+        run: cargo build --release --target wasm32-wasip1
+
+      - name: Extract crate name and version
+        id: crateinfo
+        run: |
+          CRATE_NAME=$(grep '^name' Cargo.toml | head -n1 | sed -E 's/name = "(.*)"/\1/')
+          VERSION=$(grep '^version' Cargo.toml | head -n1 | sed -E 's/version = "(.*)"/\1/')
+          echo "crate_name=$CRATE_NAME" >> $GITHUB_OUTPUT
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+
+      - name: Create artifacts
+        run: |
+          mkdir release
+          cp target/wasm32-wasip1/release/*.wasm release/plugin.wasm
+          cp .traefik.yml release/
+
+      - name: Create zip archive
+        id: zip
+        run: |
+          cd release
+          ZIP="${{ steps.crateinfo.outputs.crate_name }}-v${{ steps.crateinfo.outputs.version }}.zip"
+          zip ../"$ZIP" plugin.wasm .traefik.yml
+          echo "name=$ZIP" >> $GITHUB_OUTPUT
+
+      - name: Upload build asset
+        uses: action/upload-artifact@v4
+        with:
+          name: build-assets
+          path: ${{ steps.zip.outputs.name }}
