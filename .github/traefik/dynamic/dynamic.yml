@@ -1,0 +1,12 @@
+http:
+  middlewares:
+    maintenance:
+      plugin:
+        maintenance-response:
+          enabled: true
+          responses:
+            # must match the mount path
+            - /maintenance/index.html
+            - /maintenance/index.json
+          onlyIf: |
+            http.host == "example.com"
