@@ -53,21 +53,23 @@ impl Filter {
     fn matches(&self, request: &Request) -> Result<bool, Box<dyn Error>> {
         let mut context = ExecutionContext::new(&self.scheme);
         let method = request.method();
-        debug!("Setting method: {}", method.as_str());
+        let method = method.to_str().unwrap_or_default();
+        debug!("Setting method: {method}");
         context
-            .set_field_value_from_name("http.method", method.as_str())
+            .set_field_value_from_name("http.method", method)
             .expect("Failed to set method");
 
         let header = request.header();
 
         let user_agents = header.values(&Bytes::from("User-Agent"));
-        if let Some(agents) = user_agents.first() {
-            debug!("Setting User-Agent: {}", agents.as_str());
+        if let Some(agent) = user_agents.first() {
+            let agent = agent.to_str().unwrap_or_default();
+            debug!("Setting User-Agent: {agent}");
             context
-                .set_field_value_from_name("http.ua", agents.as_str())
+                .set_field_value_from_name("http.ua", agent)
                 .expect("Failed to set User-Agent");
             if user_agents.len() > 1 {
-                debug!("Multiple User-Agent headers found, using the first one: {agents}");
+                debug!("Multiple User-Agent headers found, using the first one: {agent}");
             }
         } else {
             context
@@ -78,7 +80,7 @@ impl Filter {
         let hosts = header.values(&Bytes::from("Host"));
         if let Some(authority) = hosts
             .first()
-            .and_then(|h| Authority::from_str(h.as_str()).ok())
+            .and_then(|h| Authority::from_str(h.to_str().unwrap_or_default()).ok())
         {
             let host = authority.host().to_string();
             if hosts.len() > 1 {
@@ -98,13 +100,15 @@ impl Filter {
         }
 
         let version = request.version();
-        debug!("Setting HTTP version: {}", version.as_str());
+        let version = version.to_str().unwrap_or_default();
+        debug!("Setting HTTP version: {version}");
         context
-            .set_field_value_from_name("http.version", version.as_str())
+            .set_field_value_from_name("http.version", version)
             .expect("Failed to set HTTP version");
 
         let source_addr = request.source_addr();
-        if let Ok(addr) = SocketAddr::from_str(source_addr.as_str()) {
+        let source_addr = source_addr.to_str().unwrap_or_default();
+        if let Ok(addr) = SocketAddr::from_str(source_addr) {
             debug!("Setting source address: {addr:?}");
             context
                 .set_field_value_from_name("src.port", addr.port())
@@ -112,7 +116,7 @@ impl Filter {
             context
                 .set_field_value_from_name("src.ip", addr.ip())
                 .expect("Failed to set source port");
-        } else if let Ok(ip) = IpAddr::from_str(source_addr.as_str()) {
+        } else if let Ok(ip) = IpAddr::from_str(source_addr) {
             debug!("Setting client IP: {ip}");
             context
                 .set_field_value_from_name("src.ip", ip)
@@ -125,10 +129,11 @@ impl Filter {
                 .expect("Failed to set client IP");
         }
 
-        let path = request.uri();
-        debug!("Setting path: {}", path.as_str());
+        let uri = request.uri();
+        let path = uri.to_str().unwrap_or_default();
+        debug!("Setting path: {path}");
         context
-            .set_field_value_from_name("http.path", path.as_str())
+            .set_field_value_from_name("http.path", path)
             .expect("Failed to set path");
 
         self.filter.execute(&context).map_err(Into::into)
@@ -357,13 +362,12 @@ impl Guest for Plugin {
         if let Some(filter) = &self.filter {
             match filter.matches(&request) {
                 Ok(true) => {
-                    debug!("Request {:?} matches filter", request.uri().as_str());
+                    debug!("Request {:?} matches filter", request.uri().to_str());
                 }
                 Ok(false) => {
-                    debug!(
-                        "Request {:?} does not match filter, skipping...",
-                        request.uri().as_str()
-                    );
+                    let uri = request.uri();
+                    let uri = uri.to_str();
+                    debug!("Request {uri:?} does not match filter, skipping...");
                     return proceed;
                 }
                 Err(err) => {
@@ -374,7 +378,10 @@ impl Guest for Plugin {
         }
         if let Some(pages) = &self.maintenance_pages {
             let accept_headers = request.header().values(&Bytes::from("Accept"));
-            let accept_header = accept_headers.first().map(|v| v.as_str()).unwrap_or("");
+            let accept_header = accept_headers
+                .first()
+                .and_then(|v| v.to_str().ok())
+                .unwrap_or("");
             match pages.send_page(accept_header, &response) {
                 Ok(_) => {
                     debug!("Maintenance page sent successfully");
