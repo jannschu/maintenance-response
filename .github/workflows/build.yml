@@ -32,6 +32,22 @@ jobs:
       - name: Build WASM
         run: cargo build ${{ inputs.debug_build != true && '--release' || '' }} --target wasm32-wasip1
 
+      - name: Install wasm-opt
+        if: ${{ inputs.debug_build != true }}
+        run: |
+          LATEST=$(curl -s https://api.github.com/repos/WebAssembly/binaryen/releases/latest | grep -o '"tag_name": "[^"]*' | grep -o '[^"]*$')
+          curl -L "https://github.com/WebAssembly/binaryen/releases/download/${LATEST}/binaryen-${LATEST}-x86_64-linux.tar.gz" | tar xz
+          echo "$PWD/binaryen-${LATEST}/bin" >> $GITHUB_PATH
+
+      - name: Optimize WASM
+        if: ${{ inputs.debug_build != true }}
+        run: |
+          wasm-opt \
+            -O2 --enable-simd --enable-bulk-memory-opt \
+            -o target/wasm32-wasip1/release/optimized.wasm \
+            target/wasm32-wasip1/release/*.wasm
+          mv target/wasm32-wasip1/release/optimized.wasm target/wasm32-wasip1/release/*.wasm
+
       - name: Extract crate name and version
         id: crateinfo
         run: |
