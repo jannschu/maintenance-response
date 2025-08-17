@@ -13,7 +13,7 @@ use headers_accept::Accept;
 use http::uri::Authority;
 use http_wasm_guest::{
     Guest,
-    host::{Bytes, Request, Response, get_config},
+    host::{Bytes, Request, Response, config},
     register,
 };
 use mediatype::MediaType;
@@ -402,17 +402,15 @@ impl Guest for Plugin {
 
 fn main() {
     http_wasm_guest::host::log::init().expect("Failed to initialize logging");
-    let config = match get_config() {
-        Ok(config) => config,
-        Err(err) => {
-            error!("Failed to get config: {err}");
-            return;
-        }
-    };
-    let plugin_config = match serde_json::from_str::<PluginConfig>(&config) {
+    let configuration = config();
+    if configuration.is_empty() {
+        info!("No plugin configuration found, skipping plugin registration");
+        return;
+    }
+    let plugin_config = match serde_json::from_slice::<PluginConfig>(&configuration) {
         Ok(c) => c,
         Err(e) => {
-            error!("Configuration: {config:?}");
+            error!("Configuration: {configuration:?}");
             error!("Failed to parse plugin configuration: {e}");
             return;
         }
