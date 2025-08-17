@@ -37,7 +37,12 @@ jobs:
         run: |
           LATEST=$(curl -s https://api.github.com/repos/WebAssembly/binaryen/releases/latest | grep -o '"tag_name": "[^"]*' | grep -o '[^"]*$')
           curl -L "https://github.com/WebAssembly/binaryen/releases/download/${LATEST}/binaryen-${LATEST}-x86_64-linux.tar.gz" | tar xz
-          echo "$PWD/binaryen-${LATEST}/bin" >> $GITHUB_PATH
+          DIR="$PWD/binaryen-${LATEST}/bin"
+          if [ -n "$GITHUB_PATH" ]; then
+            echo "$DIR" >> "$GITHUB_PATH"
+          else
+            export PATH="$DIR:$PATH"
+          fi
 
       - name: Optimize WASM
         if: ${{ inputs.debug_build != true }}
@@ -45,8 +50,8 @@ jobs:
           wasm-opt \
             -O2 --enable-simd --enable-bulk-memory-opt \
             -o target/wasm32-wasip1/release/optimized.wasm \
-            target/wasm32-wasip1/release/*.wasm
-          mv target/wasm32-wasip1/release/optimized.wasm target/wasm32-wasip1/release/*.wasm
+            target/wasm32-wasip1/release/maintenance-response.wasm
+          mv target/wasm32-wasip1/release/optimized.wasm target/wasm32-wasip1/release/maintenance-response.wasm
 
       - name: Extract crate name and version
         id: crateinfo
@@ -59,7 +64,7 @@ jobs:
       - name: Create artifacts
         run: |
           mkdir release
-          cp target/wasm32-wasip1/${{ inputs.debug_build != true && 'release' || 'debug' }}/*.wasm release/plugin.wasm
+          cp target/wasm32-wasip1/${{ inputs.debug_build != true && 'release' || 'debug' }}/maintenance-response.wasm release/plugin.wasm
           cp .traefik.yml release/
 
       - name: Create zip archive
