@@ -23,7 +23,7 @@ experimental:
   plugins:
     maintenance-response:
       moduleName: github.com/jannschu/maintenance-response
-      version: v0.1.2
+      version: v0.1.4
       settings:
         # because the plugin runs in a sandbox, you need to
         # mount your maintenance page/response content

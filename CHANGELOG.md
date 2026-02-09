@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.4](https://github.com/jannschu/maintenance-response/compare/v0.1.3...v0.1.4) (2026-02-09)
+
+
+### Bug Fixes
+
+* version update in README ([36a4592](https://github.com/jannschu/maintenance-response/commit/36a459264199b465e5303204805aa400ba41844b))
+
 ## [0.1.3](https://github.com/jannschu/maintenance-response/compare/v0.1.2...v0.1.3) (2026-02-09)
 
 
