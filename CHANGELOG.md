@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.1.3](https://github.com/jannschu/maintenance-response/compare/v0.1.2...v0.1.3) (2026-02-09)
+
+
+### Features
+
+* automate releases with release-please ([06842cf](https://github.com/jannschu/maintenance-response/commit/06842cfc7417bea2c960cf3964d7cf9a1632d5f6))
+
+
+### Bug Fixes
+
+* correct release-please config for README version and release title ([65010cc](https://github.com/jannschu/maintenance-response/commit/65010ccb6df4b3146b96013e7a4c9916124a55fd))
+* release-please versioning ([07a0103](https://github.com/jannschu/maintenance-response/commit/07a01031b70ee9f04dd85358c45d94c19fb54b68))
+
 ## [0.1.2](https://github.com/jannschu/maintenance-response/compare/v0.1.1...v0.1.2) (2025-08-17)
 
 ### Bug Fixes
