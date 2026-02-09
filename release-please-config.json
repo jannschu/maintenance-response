@@ -1,0 +1,16 @@
+{
+  "packages": {
+    ".": {
+      "release-type": "rust",
+      "include-v-in-tag": true,
+      "extra-files": [
+        {
+          "type": "generic",
+          "path": "README.md",
+          "search": "version: v{x}",
+          "replace": "version: v${version}"
+        }
+      ]
+    }
+  }
+}

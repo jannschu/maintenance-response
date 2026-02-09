@@ -150,3 +150,32 @@ Steps:
    cd .github/traefik/
    docker compose down
    ```
+
+### Releasing
+
+This project uses [release-please](https://github.com/googleapis/release-please) for automated releases. To create a new release:
+
+1. Make commits following [Conventional Commits](https://www.conventionalcommits.org/):
+
+   - `feat:` for new features (minor version bump)
+   - `fix:` for bug fixes (patch version bump)
+   - `feat!:` or `BREAKING CHANGE:` in footer for breaking changes (major version bump)
+   - `chore:`, `docs:`, `style:`, `refactor:`, `test:`, `ci:` for non-release changes
+
+2. Push to `main` branch - release-please will automatically:
+
+   - Create/update a release PR with version bumps and changelog
+   - Update `Cargo.toml`, `README.md`, and `CHANGELOG.md`
+
+3. Review and merge the release PR - this will:
+   - Create a git tag
+   - Build the WASM plugin
+   - Create a GitHub release with the plugin artifact
+
+Example commits:
+
+```bash
+git commit -m "feat: add support for custom headers"
+git commit -m "fix: correct path matching in filter"
+git commit -m "docs: update installation instructions"
+```
