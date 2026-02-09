@@ -3,12 +3,13 @@
     ".": {
       "release-type": "rust",
       "include-v-in-tag": true,
+      "include-component-in-tag": false,
       "extra-files": [
         {
           "type": "generic",
           "path": "README.md",
-          "search": "version: v{x}",
-          "replace": "version: v${version}"
+          "search": "version: v\\d+\\.\\d+\\.\\d+",
+          "replace": "version: v{{version}}"
         }
       ]
     }
