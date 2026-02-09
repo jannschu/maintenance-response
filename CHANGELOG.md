@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.2.0](https://github.com/jannschu/maintenance-response/compare/maintenance-response-v0.1.2...maintenance-response-v0.2.0) (2026-02-09)
+
+
+### Features
+
+* automate releases with release-please ([06842cf](https://github.com/jannschu/maintenance-response/commit/06842cfc7417bea2c960cf3964d7cf9a1632d5f6))
+
 ## [0.1.2](https://github.com/jannschu/maintenance-response/compare/v0.1.1...v0.1.2) (2025-08-17)
 
 ### Bug Fixes
