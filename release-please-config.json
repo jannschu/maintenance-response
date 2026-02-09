@@ -8,9 +8,7 @@
       "extra-files": [
         {
           "type": "generic",
-          "path": "README.md",
-          "search": "version: v\\d+\\.\\d+\\.\\d+",
-          "replace": "version: v{{version}}"
+          "path": "README.md"
         }
       ]
     }

@@ -17,6 +17,7 @@
 
 Add the plugin to your `traefik.yml` configuration file:
 
+<!-- x-release-please-start-version -->
 ```yaml
 experimental:
   plugins:
@@ -29,6 +30,7 @@ experimental:
         mounts:
           - /etc/traefik/maintenance:/maintenance:ro
 ```
+<!-- x-release-please-end -->
 
 Provide a dynamic configuration, e.g. file based:
 
