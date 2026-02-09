@@ -11,11 +11,7 @@ use std::{
 
 use headers_accept::Accept;
 use http::uri::Authority;
-use http_wasm_guest::{
-    Guest,
-    host::{Bytes, Request, Response, config},
-    register,
-};
+use http_wasm_guest::{Guest, Request, Response, api::Bytes, host::config, register};
 use mediatype::MediaType;
 use serde::{
     Deserialize, Deserializer,
