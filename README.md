@@ -102,3 +102,51 @@ You may use the following fields in your filter expression:
 - `http.ua`: the HTTP user agent header
 - `src.ip`: the source IP address of the request
 - `src.port`: the source port of the request
+
+## Development
+
+### Running end-to-end tests locally
+
+Prerequisites:
+
+- Rust toolchain with `wasm32-wasip1` target: `rustup target add wasm32-wasip1`
+- Docker and Docker Compose
+- [uv](https://docs.astral.sh/uv/) Python package manager
+
+Steps:
+
+1. **Build the plugin**:
+
+   ```bash
+   cargo build --target wasm32-wasip1
+   ```
+
+2. **Set up the plugin for Traefik**:
+
+   ```bash
+   mkdir -p .github/traefik/plugins/src/github.com/jannschu/maintenance-response/
+   cp target/wasm32-wasip1/debug/maintenance-response.wasm .github/traefik/plugins/src/github.com/jannschu/maintenance-response/plugin.wasm
+   cp .traefik.yml .github/traefik/plugins/src/github.com/jannschu/maintenance-response/
+   ```
+
+3. **Start Traefik**:
+
+   ```bash
+   cd .github/traefik/
+   mkdir -p maintenance
+   docker compose up -d
+   ```
+
+4. **Run the tests**:
+
+   ```bash
+   cd tests/e2e
+   uv run pytest
+   ```
+
+5. **Clean up**:
+
+   ```bash
+   cd .github/traefik/
+   docker compose down
+   ```

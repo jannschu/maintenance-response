@@ -37,7 +37,7 @@ redis.mset(
 def pytest_configure(config):
     for _ in range(10):
         try:
-            res = requests.get(TRAEFIK_URL + "/static/ok")
+            res = requests.get(f"{TRAEFIK_URL}:8080/api/overview")
             if res.status_code == 200:
                 break
         except requests.ConnectionError:
@@ -137,7 +137,7 @@ def plugin():
         pipe.mset(redis_keys)
         pipe.execute()
 
-        for _ in range(10):
+        for _ in range(30):
             middleware = get_middleware_config(f"{middleware_name}@redis")
             if middleware is not None:
                 config = middleware["plugin"][plugin_name]
@@ -145,9 +145,13 @@ def plugin():
                     config["content"] = config["content"].split(",")
                 if config == new:
                     break
-            time.sleep(0.1)
+            time.sleep(0.2)
         else:
-            raise RuntimeError(f"Middleware {middleware_name} found or not updated after 5 attempts.")
+            raise RuntimeError(
+                f"Middleware {middleware_name} not matching after 30 attempts.\n"
+                f"Expected: {new}\n"
+                f"Got: {middleware and middleware.get('plugin', {}).get(plugin_name)}"
+            )
 
     try:
         yield _configure
