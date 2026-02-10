@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.5](https://github.com/jannschu/maintenance-response/compare/v0.1.4...v0.1.5) (2026-02-10)
+
+
+### Bug Fixes
+
+* attach zip to releases that is required by traefik plugins ([ff05d0e](https://github.com/jannschu/maintenance-response/commit/ff05d0e1e05ff4e00e0e75e06bb9493596877900))
+
 ## [0.1.4](https://github.com/jannschu/maintenance-response/compare/v0.1.3...v0.1.4) (2026-02-09)
 
 
