@@ -1,5 +1,21 @@
 # Changelog
 
+## [0.1.6](https://github.com/jannschu/maintenance-response/compare/v0.1.5...v0.1.6) (2026-03-16)
+
+
+### Features
+
+* automate releases with release-please ([06842cf](https://github.com/jannschu/maintenance-response/commit/06842cfc7417bea2c960cf3964d7cf9a1632d5f6))
+
+
+### Bug Fixes
+
+* attach zip to releases that is required by traefik plugins ([ff05d0e](https://github.com/jannschu/maintenance-response/commit/ff05d0e1e05ff4e00e0e75e06bb9493596877900))
+* correct release-please config for README version and release title ([65010cc](https://github.com/jannschu/maintenance-response/commit/65010ccb6df4b3146b96013e7a4c9916124a55fd))
+* release-please versioning ([07a0103](https://github.com/jannschu/maintenance-response/commit/07a01031b70ee9f04dd85358c45d94c19fb54b68))
+* Version not updated by last release ([52c44bb](https://github.com/jannschu/maintenance-response/commit/52c44bb1bf8c532fd9742157fc864212ac285898))
+* version update in README ([36a4592](https://github.com/jannschu/maintenance-response/commit/36a459264199b465e5303204805aa400ba41844b))
+
 ## [0.1.5](https://github.com/jannschu/maintenance-response/compare/v0.1.4...v0.1.5) (2026-02-10)
 
 ### Bug Fixes
