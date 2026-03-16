@@ -11,7 +11,11 @@ use std::{
 
 use headers_accept::Accept;
 use http::uri::Authority;
-use http_wasm_guest::{Guest, Request, Response, api::Bytes, host::config, register};
+use http_wasm_guest::{
+    Guest, HostLogger,
+    host::{Request, Response, admin::config},
+    register,
+};
 use mediatype::MediaType;
 use serde::{
     Deserialize, Deserializer,
@@ -57,7 +61,7 @@ impl Filter {
 
         let header = request.header();
 
-        let user_agents = header.values(&Bytes::from("User-Agent"));
+        let user_agents = header.get_all(b"User-Agent");
         if let Some(agent) = user_agents.first() {
             let agent = agent.to_str().unwrap_or_default();
             debug!("Setting User-Agent: {agent}");
@@ -73,7 +77,7 @@ impl Filter {
                 .expect("Failed to set User-Agent");
         }
 
-        let hosts = header.values(&Bytes::from("Host"));
+        let hosts = header.get_all(b"Host");
         if let Some(authority) = hosts
             .first()
             .and_then(|h| Authority::from_str(h.to_str().unwrap_or_default()).ok())
@@ -199,10 +203,9 @@ impl MaintenancePages {
         // Read and send the file content in chunks
         match File::open(path) {
             Ok(mut file) => {
-                response.header().set(
-                    &Bytes::from("Content-Type"),
-                    &Bytes::from(mime.to_string().as_str()),
-                );
+                response
+                    .header()
+                    .set(b"Content-Type", mime.to_string().as_bytes());
                 response.set_status(MAINTENACE_STATUS);
                 let mut buffer = [0u8; 8192];
                 let body = response.body();
@@ -210,7 +213,7 @@ impl MaintenancePages {
                     match file.read(&mut buffer)? {
                         0 => break, // EOF
                         n => {
-                            body.write(&Bytes::from(&buffer[..n]));
+                            body.write(&buffer[..n]);
                         }
                     }
                 }
@@ -225,13 +228,11 @@ impl MaintenancePages {
 }
 
 fn fallback(response: &Response) -> Result<(), Box<dyn Error>> {
-    response
-        .header()
-        .set(&Bytes::from("Content-Type"), &Bytes::from("text/plain"));
+    response.header().set(b"Content-Type", b"text/plain");
     response.set_status(MAINTENACE_STATUS);
     response
         .body()
-        .write(&Bytes::from("Service unavailable due to maintenance"));
+        .write(b"Service unavailable due to maintenance");
     Ok(())
 }
 
@@ -352,11 +353,11 @@ impl PluginConfig {
 }
 
 impl Guest for Plugin {
-    fn handle_request(&self, request: Request, response: Response) -> (bool, i32) {
+    fn handle_request(&self, request: &Request, response: &Response) -> (bool, i32) {
         let ctx = 0;
         let proceed = (true, ctx);
         if let Some(filter) = &self.filter {
-            match filter.matches(&request) {
+            match filter.matches(request) {
                 Ok(true) => {
                     debug!("Request {:?} matches filter", request.uri().to_str());
                 }
@@ -373,12 +374,12 @@ impl Guest for Plugin {
             }
         }
         if let Some(pages) = &self.maintenance_pages {
-            let accept_headers = request.header().values(&Bytes::from("Accept"));
+            let accept_headers = request.header().get_all(b"Accept");
             let accept_header = accept_headers
                 .first()
                 .and_then(|v| v.to_str().ok())
                 .unwrap_or("");
-            match pages.send_page(accept_header, &response) {
+            match pages.send_page(accept_header, response) {
                 Ok(_) => {
                     debug!("Maintenance page sent successfully");
                 }
@@ -388,7 +389,7 @@ impl Guest for Plugin {
             };
         } else {
             debug!("No maintenance pages configured, proceeding with request");
-            if let Err(e) = fallback(&response) {
+            if let Err(e) = fallback(response) {
                 error!("Failed to send fallback response: {e}");
             }
         }
@@ -397,7 +398,7 @@ impl Guest for Plugin {
 }
 
 fn main() {
-    http_wasm_guest::host::log::init().expect("Failed to initialize logging");
+    let _ = HostLogger::init();
     let configuration = config();
     if configuration.is_empty() {
         info!("No plugin configuration found, skipping plugin registration");
