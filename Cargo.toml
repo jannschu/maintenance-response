@@ -15,7 +15,7 @@ log = "0.4.27"
 mediatype = "0.21.0"
 serde = { version = "1.0.219", features = ["serde_derive"] }
 serde_json = "1.0.140"
-wirefilter-engine = { git = "https://github.com/cloudflare/wirefilter.git", rev = "333d96e5c42e46a36d3323a534bafae54afd2239", features = [
+wirefilter-engine = { git = "https://github.com/cloudflare/wirefilter.git", rev = "6621924baf36f8ba7f603433dbe6f857ad3d5589", features = [
   "regex",
 ] }
 
