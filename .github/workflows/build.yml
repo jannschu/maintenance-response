@@ -20,7 +20,7 @@ jobs:
       name: ${{ steps.zip.outputs.name }}
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@stable
@@ -76,7 +76,7 @@ jobs:
           echo "name=$ZIP" >> $GITHUB_OUTPUT
 
       - name: Upload build asset
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: build-assets
           path: ${{ steps.zip.outputs.name }}
