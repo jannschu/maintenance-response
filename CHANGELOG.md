@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.1.7](https://github.com/jannschu/maintenance-response/compare/v0.1.6...v0.1.7) (2026-04-08)
+
+
+### Bug Fixes
+
+* allocate buffer for file content instead of reading in chunks ([6cbc084](https://github.com/jannschu/maintenance-response/commit/6cbc08481cad4059e25d3f5e7ee5719c09676b2b))
+* use fixed version of http-wasm dependency ([8f1e490](https://github.com/jannschu/maintenance-response/commit/8f1e4900f6f2a55d408c4885e1377e49868889db))
+
 ## [0.1.6](https://github.com/jannschu/maintenance-response/compare/v0.1.5...v0.1.6) (2026-03-16)
 
 
