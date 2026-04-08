@@ -12,6 +12,11 @@ TRAEFIK_URL = "http://localhost"
 CONTENT_DIR_REPO = Path(".github/traefik/maintenance")
 ECHO_ROUTER = "http/routers/echo"
 REDIS_ROOT_KEY = "traefik"
+PLUGIN_NAME = "maintenance-response"
+TRAEFIK_API_TIMEOUT = 1
+TRAEFIK_READY_TIMEOUT = 15
+MIDDLEWARE_READY_TIMEOUT = 30
+POLL_INTERVAL = 0.2
 
 CONTENT_DIRECTORY = Path(__file__).parent
 while CONTENT_DIRECTORY.parent != CONTENT_DIRECTORY and not (CONTENT_DIRECTORY / CONTENT_DIR_REPO).exists():
@@ -35,21 +40,22 @@ redis.mset(
 
 
 def pytest_configure(config):
-    for _ in range(10):
+    deadline = time.monotonic() + TRAEFIK_READY_TIMEOUT
+    while time.monotonic() < deadline:
         try:
-            res = requests.get(f"{TRAEFIK_URL}:8080/api/overview")
-            if res.status_code == 200:
+            res = requests.get(f"{TRAEFIK_URL}:8080/api/overview", timeout=TRAEFIK_API_TIMEOUT)
+            router = requests.get(f"{TRAEFIK_URL}:8080/api/http/routers/echo@redis", timeout=TRAEFIK_API_TIMEOUT)
+            if res.status_code == 200 and router.status_code == 200:
                 break
         except requests.ConnectionError:
             pass
-        time.sleep(0.25)
+        time.sleep(POLL_INTERVAL)
     else:
         raise RuntimeError("Traefik is not running, please start it before running the tests.")
 
 
 @pytest.fixture()
 def plugin():
-    plugin_name = "maintenance-response"
     cleanup = []
 
     def _configure(enabled=True, content: None | dict[str, str | bytes | None] = None, only_if: str | None = None):
@@ -130,27 +136,20 @@ def plugin():
 
         pipe = redis.pipeline()
         redis_keys = {
-            f"{REDIS_ROOT_KEY}/http/middlewares/{middleware_name}/plugin/{plugin_name}/{k}".removesuffix("/"): v
+            f"{REDIS_ROOT_KEY}/http/middlewares/{middleware_name}/plugin/{PLUGIN_NAME}/{k}".removesuffix("/"): v
             for k, v in flattened.items()
         }
         redis_keys[f"{route}/0"] = middleware_name + "@redis"
         pipe.mset(redis_keys)
         pipe.execute()
 
-        for _ in range(30):
-            middleware = get_middleware_config(f"{middleware_name}@redis")
-            if middleware is not None:
-                config = middleware["plugin"][plugin_name]
-                if "content" in config:
-                    config["content"] = config["content"].split(",")
-                if config == new:
-                    break
-            time.sleep(0.2)
-        else:
+        observed = wait_for_middleware_config(middleware_name, new)
+        if observed != new:
             raise RuntimeError(
-                f"Middleware {middleware_name} not matching after 30 attempts.\n"
+                f"Middleware {middleware_name} not matching after {MIDDLEWARE_READY_TIMEOUT} seconds.\n"
                 f"Expected: {new}\n"
-                f"Got: {middleware and middleware.get('plugin', {}).get(plugin_name)}"
+                f"Got: {observed}\n"
+                f"Known maintenance middlewares: {get_maintenance_middlewares()}"
             )
 
     try:
@@ -162,8 +161,43 @@ def plugin():
 
 
 def get_middleware_config(name: str) -> dict[str, Any] | None:
-    response = requests.get(f"{TRAEFIK_URL}:8080/api/http/middlewares/{name}")
+    response = requests.get(f"{TRAEFIK_URL}:8080/api/http/middlewares/{name}", timeout=TRAEFIK_API_TIMEOUT)
     return response.json() if response.status_code == 200 else None
+
+
+def normalize_middleware_config(middleware: dict[str, Any] | None) -> dict[str, Any] | None:
+    if middleware is None:
+        return None
+    config = middleware.get("plugin", {}).get(PLUGIN_NAME)
+    if config is None:
+        return None
+    config = dict(config)
+    if "content" in config:
+        config["content"] = config["content"].split(",")
+    return config
+
+
+def wait_for_middleware_config(name: str, expected: dict[str, Any]) -> dict[str, Any] | None:
+    deadline = time.monotonic() + MIDDLEWARE_READY_TIMEOUT
+    last_seen = None
+    while time.monotonic() < deadline:
+        middleware = get_middleware_config(f"{name}@redis")
+        last_seen = normalize_middleware_config(middleware)
+        if last_seen == expected:
+            return last_seen
+        time.sleep(POLL_INTERVAL)
+    return last_seen
+
+
+def get_maintenance_middlewares() -> list[str]:
+    response = requests.get(f"{TRAEFIK_URL}:8080/api/http/middlewares", timeout=TRAEFIK_API_TIMEOUT)
+    if response.status_code != 200:
+        return []
+    return sorted(
+        middleware["name"]
+        for middleware in response.json()
+        if middleware.get("provider") == "redis" and middleware.get("type") == PLUGIN_NAME
+    )
 
 
 class Query:
