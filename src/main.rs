@@ -1,9 +1,7 @@
 use std::{
     collections::{HashMap, hash_map::Entry},
     error::Error,
-    fmt,
-    fs::File,
-    io::Read,
+    fmt, fs,
     net::{IpAddr, Ipv4Addr, SocketAddr},
     path::PathBuf,
     str::FromStr,
@@ -200,23 +198,13 @@ impl MaintenancePages {
             return fallback(response);
         };
 
-        // Read and send the file content in chunks
-        match File::open(path) {
-            Ok(mut file) => {
+        match fs::read(path) {
+            Ok(content) => {
                 response
                     .header()
                     .set(b"Content-Type", mime.to_string().as_bytes());
                 response.set_status(MAINTENACE_STATUS);
-                let mut buffer = [0u8; 8192];
-                let body = response.body();
-                loop {
-                    match file.read(&mut buffer)? {
-                        0 => break, // EOF
-                        n => {
-                            body.write(&buffer[..n]);
-                        }
-                    }
-                }
+                response.body().write(&content);
                 Ok(())
             }
             Err(e) => {
