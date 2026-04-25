@@ -57,36 +57,24 @@ impl Filter {
             .set_field_value_from_name("http.method", method)
             .expect("Failed to set method");
 
-        let header = request.header();
-
-        let user_agents = header.get_all(b"User-Agent");
-        if let Some(agent) = user_agents.first() {
-            let agent = agent.to_str().unwrap_or_default();
+        if let Some(agent) = request.header.get(b"User-Agent") {
+            let agent = agent.to_string();
             debug!("Setting User-Agent: {agent}");
             context
                 .set_field_value_from_name("http.ua", agent)
                 .expect("Failed to set User-Agent");
-            if user_agents.len() > 1 {
-                debug!("Multiple User-Agent headers found, using the first one: {agent}");
-            }
         } else {
             context
                 .set_field_value_from_name("http.ua", "")
                 .expect("Failed to set User-Agent");
         }
 
-        let hosts = header.get_all(b"Host");
-        if let Some(authority) = hosts
-            .first()
+        if let Some(authority) = request
+            .header
+            .get(b"Host")
             .and_then(|h| Authority::from_str(h.to_str().unwrap_or_default()).ok())
         {
             let host = authority.host().to_string();
-            if hosts.len() > 1 {
-                debug!(
-                    "Multiple Host headers found, using the first one: {}",
-                    &host
-                );
-            }
             debug!("Setting Host: {}", &host);
             context
                 .set_field_value_from_name("http.host", host)
@@ -201,10 +189,10 @@ impl MaintenancePages {
         match fs::read(path) {
             Ok(content) => {
                 response
-                    .header()
+                    .header
                     .set(b"Content-Type", mime.to_string().as_bytes());
                 response.set_status(MAINTENACE_STATUS);
-                response.body().write(&content);
+                response.body.write(&content);
                 Ok(())
             }
             Err(e) => {
@@ -216,10 +204,10 @@ impl MaintenancePages {
 }
 
 fn fallback(response: &Response) -> Result<(), Box<dyn Error>> {
-    response.header().set(b"Content-Type", b"text/plain");
+    response.header.set(b"Content-Type", b"text/plain");
     response.set_status(MAINTENACE_STATUS);
     response
-        .body()
+        .body
         .write(b"Service unavailable due to maintenance");
     Ok(())
 }
@@ -362,12 +350,12 @@ impl Guest for Plugin {
             }
         }
         if let Some(pages) = &self.maintenance_pages {
-            let accept_headers = request.header().get_all(b"Accept");
-            let accept_header = accept_headers
-                .first()
-                .and_then(|v| v.to_str().ok())
-                .unwrap_or("");
-            match pages.send_page(accept_header, response) {
+            let accept_header = request
+                .header
+                .get(b"Accept")
+                .map(|v| v.to_string())
+                .unwrap_or("".to_string());
+            match pages.send_page(&accept_header, response) {
                 Ok(_) => {
                     debug!("Maintenance page sent successfully");
                 }
